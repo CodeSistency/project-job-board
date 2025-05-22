@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.env
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints
+
+# VSCode
+.vscode/
+
+# Data / Spreadsheet files
+# Excel files
+*.xlsx
+*.xls
+*.xlsm
+*.xlsb
+
+# Other spreadsheet files
+*.csv
+*.ods
+*.tsv
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.json
+*.zip
+*.gz
+*.tar
+*.rar
+*.7z
+
+# Streamlit
+.streamlit/
