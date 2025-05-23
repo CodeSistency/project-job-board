@@ -27,9 +27,13 @@ if not all([candidates_file, comments_file, template_file]):
     st.stop()
 
 # --- Procesamiento de datos ---
-candidates_df = pd.read_excel(candidates_file) if candidates_uploaded and str(candidates_file.name).lower().endswith('.xlsx') \
-    else pd.read_csv(candidates_file) if candidates_uploaded and str(candidates_file.name).lower().endswith('.csv') \
-    else dp.read_candidates(candidates_file)
+import streamlit as st
+if candidates_uploaded and str(candidates_file.name).lower().endswith('.xlsx'):
+    candidates_df = pd.read_excel(candidates_file)
+elif candidates_uploaded and str(candidates_file.name).lower().endswith('.csv'):
+    candidates_df = pd.read_csv(candidates_file, sep=',', engine='python')
+else:
+    candidates_df = dp.read_candidates(candidates_file)
 
 comments_df = pd.read_excel(comments_file) if comments_uploaded else dp.read_comments_excel(comments_file)
 template_df = dp.read_template(template_file, sheet=config.SHEET_TEMPLATE)
@@ -38,15 +42,32 @@ template_df = dp.read_template(template_file, sheet=config.SHEET_TEMPLATE)
 comments_map = dp.merge_comments(comments_df)
 
 # --- Construcción de tabla final ---
+import json
+
 def extract_linkedin(row):
-    # Busca en varias columnas posibles de LinkedIn
+    # Buscar primero columnas extraídas
+    extracted_cols = [c for c in row.index if c.lower().replace(' ', '').startswith('linkedin') and c.endswith('_Extracted')]
+    for col in extracted_cols:
+        val = row.get(col)
+        if pd.notnull(val):
+            return str(val)
+    # Si no, buscar en las columnas originales
     for col in ['14_Linkedin URL', 'Linkedin Url', 'LinkedIn', 'linkedin']:
         val = row.get(col)
         if pd.notnull(val):
             # Si es un hipervínculo de Excel (openpyxl lo puede leer como objeto), extraer string
             if hasattr(val, 'hyperlink') and val.hyperlink:
                 return val.hyperlink.target
-            return str(val)
+            # Si es un string JSON, intentar extraer el campo 'uri'
+            val_str = str(val)
+            if val_str.strip().startswith('{'):
+                try:
+                    js = json.loads(val_str)
+                    if 'uri' in js:
+                        return js['uri']
+                except Exception:
+                    pass
+            return val_str
     return ''
 
 def build_final_table(candidates_df, comments_map):
@@ -59,6 +80,11 @@ def build_final_table(candidates_df, comments_map):
         download = row.get('download')
         tags = row.get('tags')
         linkedin = extract_linkedin(row)
+        # DEBUG: Log the input and output of extract_linkedin for first 10 rows
+        if idx < 10:
+            import streamlit as st
+            # st.write(f"[DEBUG] Row {idx} LinkedIn raw value:", row.get('14_Linkedin URL'))
+            # st.write(f"[DEBUG] Row {idx} LinkedIn extracted:", linkedin)
         # Formato de comentarios: "Comentario ID: <id> | Fecha: <fecha>\n<texto>"
         note_raw = comments_map.get(cid, '')
         if note_raw:
@@ -84,7 +110,7 @@ def build_final_table(candidates_df, comments_map):
             'phone': phone,
             'download': download,
             'tags': tags,
-            '14_Linkedin URL': linkedin,
+            'linkedin_url': linkedin,
             'comments': note
         })
     return pd.DataFrame(rows)
@@ -105,6 +131,7 @@ def to_excel(df):
     wb = load_workbook(template_file)
     ws = wb[config.SHEET_TEMPLATE]
     ws.delete_rows(3, ws.max_row-2)  # Borra datos anteriores, deja headers y notas
+    ws.delete_rows(2, 1)  # Borra la fila de notas/instrucciones (segunda fila)
     for i, row in df.iterrows():
         ws.append(list(row.values))
     wb.save(output)

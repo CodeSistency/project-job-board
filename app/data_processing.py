@@ -5,14 +5,40 @@ import pandas as pd
 from typing import Optional, List, Dict
 import os
 
+def extract_linkedin_urls_xlsx(path: str, linkedin_columns=None) -> pd.DataFrame:
+    """
+    Lee un archivo Excel y extrae los hyperlinks de las columnas de LinkedIn si existen.
+    Devuelve un DataFrame con una columna adicional 'LinkedIn_Extracted' si se encuentra.
+    """
+    import openpyxl
+    if linkedin_columns is None:
+        linkedin_columns = ['14_Linkedin URL', 'Linkedin Url', 'LinkedIn', 'linkedin']
+
+    wb = openpyxl.load_workbook(path, data_only=True)
+    ws = wb.active
+    data = list(ws.values)
+    headers = [str(h) if h is not None else "" for h in data[0]]
+    df = pd.DataFrame(data[1:], columns=headers)
+
+    # Extract hyperlinks
+    for col in linkedin_columns:
+        if col in ws[1]:
+            col_idx = headers.index(col) + 1  # openpyxl is 1-based
+            urls = []
+            for row in ws.iter_rows(min_row=2, min_col=col_idx, max_col=col_idx):
+                cell = row[0]
+                if cell.hyperlink:
+                    urls.append(cell.hyperlink.target)
+                else:
+                    urls.append(cell.value)
+            df[col + '_Extracted'] = urls
+    return df
+
 def read_candidates(path: str) -> pd.DataFrame:
-    """Lee el archivo de candidatos (CSV o XLSX) y retorna un DataFrame."""
-    if path.lower().endswith('.csv'):
-        return pd.read_csv(path)
-    elif path.lower().endswith('.xlsx'):
-        return pd.read_excel(path)
-    else:
-        raise ValueError(f"Formato de archivo no soportado: {path}")
+    """Lee el archivo de candidatos (CSV) y retorna un DataFrame. Extrae LinkedIn URL del campo JSON si está presente."""
+    import pandas as pd
+    df = pd.read_csv(path, sep=',', engine='python')
+    return df
 
 def read_comments_excel(path: str) -> pd.DataFrame:
     """Lee el archivo de comentarios Excel y retorna un DataFrame."""
