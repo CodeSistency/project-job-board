@@ -26,4 +26,8 @@ def row_selector(df: pd.DataFrame):
         valid_options,
         format_func=lambda x: f"{x} filas" if x != max_rows else "Todas las filas"
     )
+    if choice == max_rows:
+        st.info(f"Estás mostrando/exportando todas las filas ({max_rows} filas). Si el archivo exportado no abre, puede ser demasiado grande para Excel o tu sistema.")
+    else:
+        st.write(f"Mostrando/exportando las primeras {choice} filas de {max_rows}.")
     return df.head(choice) if choice != max_rows else df
