@@ -118,9 +118,37 @@ def build_final_table(candidates_df, comments_map):
 
 final_df = build_final_table(candidates_df, comments_map)
 
+import pandas as pd
+import re
+
+def format_notes(note):
+    if pd.isna(note) or not note.strip():
+        return ''
+        
+    # Split by double newlines and filter out empty comments
+    comments = [c.strip() for c in note.split('\n\n') if c.strip()]
+    
+    # If no valid comments, return empty string
+    if not comments:
+        return ''
+    
+    # Process each comment to ensure it starts with 'note:'
+    formatted_comments = []
+    for comment in comments:
+        # Remove any existing note prefix
+        comment = re.sub(r'^note\s*:?\s*', '', comment, flags=re.IGNORECASE).strip()
+        # Add the note prefix without numbering
+        formatted_comments.append(f'note: {comment}')
+    
+    # Join all comments with double newlines
+    return '\n\n'.join(formatted_comments)
+
 # --- Selección de filas a exportar ---
 st.subheader("Vista previa de la tabla final")
 filtered_df = ui.row_selector(final_df)
+# Apply note formatting for preview
+filtered_df = filtered_df.copy()
+filtered_df['Note 1'] = filtered_df['Note 1'].apply(format_notes)
 ui.show_table(filtered_df)
 
 # --- Botón para descargar template ---
@@ -162,7 +190,11 @@ def to_excel(df):
     return output
 
 # Streamlit download button for normal export
-excel_bytes = to_excel(filtered_df)
+
+# Apply the same formatting for export
+export_df = filtered_df.copy()
+export_df['Note 1'] = export_df['Note 1'].apply(format_notes)
+excel_bytes = to_excel(export_df)
 if excel_bytes:
     st.download_button(
         label="Descargar Excel exportado",
@@ -170,6 +202,26 @@ if excel_bytes:
         file_name="Teamtailor_Export.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+# --- Table: Candidates with more than one comment ---
+# First, count comments before formatting
+main_df = filtered_df.copy()
+
+def count_comments(note):
+    if pd.isna(note) or not note.strip():
+        return 0
+    return len([c for c in note.split('\n\n') if c.strip()])
+
+# Add comment count before formatting
+main_df['comment_count'] = main_df['Note 1'].apply(count_comments)
+
+# Format notes after counting
+main_df['Note 1'] = main_df['Note 1'].apply(format_notes)
+
+# Show only candidates with more than one comment
+multi_comment_df = main_df[main_df['comment_count'] > 1]
+st.subheader("Candidatos con más de un comentario")
+st.dataframe(multi_comment_df[['Candidate Id', 'First Name', 'Last Name', 'Email', 'comment_count', 'Note 1']])
 #     file_name="Teamtailor_Import_Template.xlsx",
 #     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 # )
