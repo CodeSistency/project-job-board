@@ -311,7 +311,7 @@ export_df['Note 1'] = export_df['Note 1'].apply(format_notes)
 excel_bytes = to_excel(export_df)
 if excel_bytes:
     st.download_button(
-        label="Descargar Excel exportado",
+        label="Descargar Excel",
         data=excel_bytes,
         file_name="Teamtailor_Export.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
