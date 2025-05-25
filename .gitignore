@@ -17,41 +17,7 @@ build/
 # VSCode
 .vscode/
 
-# Data / Spreadsheet files
-# Excel files
-!test-data/*.xlsx
-!original/*.xlsx
-*.xlsx
-*.xls
-*.xlsm
-*.xlsb
-
-# Other spreadsheet files
-!test-data/*.csv
-!original/*.csv
-*.csv
-*.ods
-*.tsv
-*.parquet
-*.feather
-*.h5
-*.hdf5
-*.json
-*.zip
-*.gz
-*.tar
-*.rar
-*.7z
-
 # Streamlit
 .streamlit/
 
-# Explicitly include test-data and original directories
-!test-data/
-!test-data/**
-!original/
-!original/**
 
-# But ignore any other .csv or .xlsx files outside these directories
-*.xlsx
-*.csv
