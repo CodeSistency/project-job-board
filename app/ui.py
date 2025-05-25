@@ -8,6 +8,20 @@ from typing import Optional
 def show_table(df: pd.DataFrame, filters: bool = True):
     """Muestra una tabla con filtros avanzados."""
     if filters:
+        # Add search bar
+        search_term = st.text_input("Buscar candidato (ID, Nombre o Apellido, Email):", "", key="search_candidate")
+        
+        # Filter dataframe based on search term
+        if search_term:
+            search_term = search_term.lower()
+            mask = (
+                df['Candidate Id'].astype(str).str.lower().str.contains(search_term) |
+                df['First Name'].fillna('').astype(str).str.lower().str.contains(search_term) |
+                df['Last Name'].fillna('').astype(str).str.lower().str.contains(search_term) |
+                df['Email'].fillna('').astype(str).str.lower().str.contains(search_term)
+            )
+            df = df[mask]
+            
         st.dataframe(df, use_container_width=True)
     else:
         st.table(df)

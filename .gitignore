@@ -19,12 +19,16 @@ build/
 
 # Data / Spreadsheet files
 # Excel files
+!test-data/*.xlsx
+!original/*.xlsx
 *.xlsx
 *.xls
 *.xlsm
 *.xlsb
 
 # Other spreadsheet files
+!test-data/*.csv
+!original/*.csv
 *.csv
 *.ods
 *.tsv
@@ -41,3 +45,13 @@ build/
 
 # Streamlit
 .streamlit/
+
+# Explicitly include test-data and original directories
+!test-data/
+!test-data/**
+!original/
+!original/**
+
+# But ignore any other .csv or .xlsx files outside these directories
+*.xlsx
+*.csv

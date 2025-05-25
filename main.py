@@ -5,8 +5,8 @@ from app import data_processing as dp
 from app import ui
 from app import config
 
-st.set_page_config(page_title="Unificación de Candidatos Teamtailor", layout="wide")
-st.title("Unificación y Exportación de Candidatos para Teamtailor")
+st.set_page_config(page_title="Project Job board", layout="wide")
+st.title("Project Job board")
 
 # --- Carga de archivos ---
 def get_file(path, file_uploader_label, type, key):
@@ -71,6 +71,79 @@ def extract_linkedin(row):
             return val_str
     return ''
 
+def format_phone(phone):
+    if pd.isna(phone) or not str(phone).strip():
+        return ''
+    # Remove all '+' characters from phone number
+    return str(phone).replace('+', '').strip()
+
+def format_tags(tags):
+    if pd.isna(tags) or not str(tags).strip():
+        return ''
+    # Replace pipe (|) with semicolon (;)
+    return '; '.join(tag.strip() for tag in str(tags).split('|') if tag.strip())
+
+def is_valid_linkedin_url(url):
+    """
+    Validates if a URL is a properly formatted LinkedIn URL.
+    Returns (is_valid, normalized_url)
+    """
+    if pd.isna(url) or not str(url).strip():
+        return False, ''
+    
+    url = str(url).strip()
+    
+    # Check if it's a LinkedIn URL (case insensitive)
+    if 'linkedin.com' not in url.lower():
+        return False, ''
+    
+    # Handle common issues
+    
+    # 1. Handle multiple 'www' or mixed case 'Www' or 'WWW'
+    url = re.sub(r'(?i)https?://(www\.)*', 'https://', url, 1)
+    
+    # 2. Ensure it starts with https://
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    
+    # 3. Ensure it has www. after https://
+    if url.startswith('https://') and not url.startswith('https://www.'):
+        url = url.replace('https://', 'https://www.', 1)
+    
+    # 4. Force HTTPS
+    if url.startswith('http://'):
+        url = url.replace('http://', 'https://', 1)
+    
+    # 5. Remove any trailing slashes or parameters
+    url = url.split('?')[0].split('#')[0].rstrip('/')
+    
+    # 6. Validate the domain pattern
+    pattern = r'^https://www\.[a-z]{2,3}\.linkedin\.com/.*|^https://www\.linkedin\.com/.*'
+    if not re.match(pattern, url.lower()):
+        return False, ''
+    
+    # 7. Check for country codes in the URL
+    country_codes = ['ar', 'au', 'at', 'bh', 'be', 'br', 'ca', 'cl', 'cn', 'co', 'cz', 'dk', 'fi', 'fr', 'de', 'gr',
+                    'hk', 'hu', 'in', 'id', 'ie', 'il', 'it', 'jp', 'kr', 'kw', 'mx', 'my', 'nl', 'nz', 'no', 'pk',
+                    'pe', 'ph', 'pl', 'pt', 'qa', 'ro', 'ru', 'sa', 'sg', 'za', 'es', 'se', 'ch', 'tw', 'th', 'tr',
+                    'ae', 'uk', 'us', 'uy', 've', 'vn']
+    
+    # Check for country-specific URLs that don't match the pattern (e.g., uy.linkedin.com)
+    country_pattern = r'^https?://([a-z]{2})\.linkedin\.com/.*'
+    country_match = re.match(country_pattern, url.lower())
+    if country_match and country_match.group(1) not in country_codes:
+        return False, ''
+    
+    return True, url
+
+def format_linkedin_url(url):
+    """
+    Format and validate a LinkedIn URL.
+    Returns an empty string if the URL is invalid or not a LinkedIn URL.
+    """
+    is_valid, formatted_url = is_valid_linkedin_url(url)
+    return formatted_url if is_valid else ''
+
 def build_final_table(candidates_df, comments_map):
     rows = []
     for idx, row in candidates_df.iterrows():
@@ -93,13 +166,17 @@ def build_final_table(candidates_df, comments_map):
             else:  # 4 or more
                 first_name = ' '.join(parts[:2])
                 last_name = ' '.join(parts[-2:])
+        
         email = row.get('email')
-        phone = row.get('phone')
+        phone = format_phone(row.get('phone'))  # Format phone number
         download = row.get('download')  # Resume Name / CV Name
-        tags = row.get('tags')
+        tags = format_tags(row.get('tags'))  # Format tags
         linkedin = extract_linkedin(row)
+        new_linkedin_url = format_linkedin_url(linkedin)  # New formatted LinkedIn URL
+        
         note_raw = comments_map.get(cid, '')
         note = note_raw if note_raw else ''
+        
         # Build row in the exact Teamtailor template order:
         rows.append({
             'Candidate Id': cid,
@@ -109,10 +186,18 @@ def build_final_table(candidates_df, comments_map):
             'Last Name': last_name,
             'Phone': phone,
             'Linkedin Url': linkedin,
+            'new_linkedin_url': new_linkedin_url,  # New column
             'Tags': tags,
             'Note 1': note
         })
-    return pd.DataFrame(rows)
+    
+    # Ensure the DataFrame has the columns in the correct order
+    columns_order = [
+        'Candidate Id', 'Email', 'Resume Name / CV Name', 'First Name', 'Last Name',
+        'Phone', 'Linkedin Url', 'new_linkedin_url', 'Tags', 'Note 1'
+    ]
+    
+    return pd.DataFrame(rows)[columns_order]
 
 
 
@@ -159,11 +244,14 @@ def to_excel(df):
     import numpy as np
     # Clean DataFrame: fill NaN/None, convert all to string, and remove invalid XML characters
     import re
+    
     def clean_xml_chars(val):
         if not isinstance(val, str):
             val = str(val)
         # Remove all control characters except tab, CR, LF, and only allow valid XML unicode ranges
         return re.sub(r'[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD]', '', val)
+    
+    # Clean the DataFrame
     df_clean = df.fillna('').replace({None: ''})
     df_clean = df_clean.astype(str)
     df_clean = df_clean.applymap(clean_xml_chars)
@@ -171,18 +259,43 @@ def to_excel(df):
     # Load template and get headers
     wb = load_workbook(template_file)
     ws = wb.active
-    template_headers = [cell.value for cell in ws[1]]
-    df_headers = list(df_clean.columns)
-    if template_headers != df_headers:
-        raise ValueError(f"DataFrame headers do not match template headers.\nDataFrame: {df_headers}\nTemplate: {template_headers}")
+    template_headers = [str(cell.value).strip() for cell in ws[1] if cell.value is not None]
+    
+    # Get the intersection of template headers and DataFrame columns
+    # This ensures we only include columns that exist in both
+    common_headers = [h for h in template_headers if h in df_clean.columns]
+    
+    # If we have new columns in the DataFrame that aren't in the template,
+    # we'll add them to the end (except new_linkedin_url which we'll handle specially)
+    new_columns = [col for col in df_clean.columns 
+                  if col not in template_headers and col != 'new_linkedin_url']
+    
+    # If there are new columns, we need to add them to the template
+    if new_columns:
+        # Find the last column with data in the first row
+        last_col = ws.max_column
+        for col_idx, col_name in enumerate(new_columns, start=last_col + 1):
+            # Add the new column header
+            ws.cell(row=1, column=col_idx, value=col_name)
+            # Update template headers
+            template_headers.append(col_name)
+    
+    # Reorder DataFrame columns to match template + any new columns
+    output_headers = [h for h in template_headers if h in df_clean.columns]
+    df_export = df_clean[output_headers].copy()
+    
+    # Update the template headers in the worksheet if we added new columns
+    if new_columns:
+        for idx, header in enumerate(template_headers, 1):
+            ws.cell(row=1, column=idx, value=header)
 
     # Remove previous data (keep headers)
-    ws.delete_rows(3, ws.max_row-2)  # Borra datos anteriores, deja headers y notas
-    ws.delete_rows(2, 1)  # Borra la fila de notas/instrucciones (segunda fila)
+    ws.delete_rows(2, ws.max_row)  # Delete all rows except the header
 
     # Append data row by row
-    for _, row in df_clean.iterrows():
-        ws.append(list(row.values))
+    for _, row in df_export.iterrows():
+        ws.append([row.get(h, '') for h in template_headers])
+    
     # Save to in-memory bytes
     output = io.BytesIO()
     wb.save(output)
