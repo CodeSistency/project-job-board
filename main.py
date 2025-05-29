@@ -267,9 +267,9 @@ def to_excel(df):
     common_headers = [h for h in template_headers if h in df_clean.columns]
     
     # If we have new columns in the DataFrame that aren't in the template,
-    # we'll add them to the end (except new_linkedin_url which we'll handle specially)
+    # we'll add them to the end
     new_columns = [col for col in df_clean.columns 
-                  if col not in template_headers and col != 'new_linkedin_url']
+                  if col not in template_headers]
     
     # If there are new columns, we need to add them to the template
     if new_columns:
